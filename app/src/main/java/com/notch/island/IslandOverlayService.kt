@@ -58,6 +58,7 @@ class IslandOverlayService : Service() {
         overlayLifecycleOwner.onCreate()
         initCutoutInfo()
         createAndAttachOverlay()
+        overlayLifecycleOwner.onResume()
 
         systemEventReceiver = com.notch.island.receiver.SystemEventReceiver.register(this)
     }
@@ -73,13 +74,8 @@ class IslandOverlayService : Service() {
     }
 
     private fun createAndAttachOverlay() {
-        val hasAccessibility = com.notch.island.service.IslandAccessibilityService.isAccessibilityEnabled(this)
         layoutParams = WindowManager.LayoutParams().apply {
-            type = if (hasAccessibility) {
-                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
-            } else {
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            }
+            type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             format = PixelFormat.TRANSLUCENT
 
             flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
@@ -125,7 +121,11 @@ class IslandOverlayService : Service() {
             }
         }
 
-        windowManager.addView(overlayComposeView, layoutParams)
+        try {
+            windowManager.addView(overlayComposeView, layoutParams)
+        } catch (e: Exception) {
+            android.util.Log.e("IslandOverlayService", "Failed to add overlay window", e)
+        }
     }
 
     private fun startForegroundServiceWithNotification() {
@@ -173,7 +173,11 @@ class IslandOverlayService : Service() {
 
         overlayComposeView?.let {
             if (it.isAttachedToWindow) {
-                windowManager.removeView(it)
+                try {
+                    windowManager.removeView(it)
+                } catch (e: Exception) {
+                    android.util.Log.e("IslandOverlayService", "Failed to remove overlay view", e)
+                }
             }
         }
         overlayComposeView = null
@@ -182,6 +186,8 @@ class IslandOverlayService : Service() {
     companion object {
         private const val NOTIFICATION_ID = 1001
         private var instance: IslandOverlayService? = null
+
+        fun isRunning(): Boolean = instance != null
 
         fun start(context: Context) {
             val intent = Intent(context, IslandOverlayService::class.java)

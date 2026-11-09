@@ -114,8 +114,12 @@ class MainActivity : ComponentActivity() {
                                 IslandOverlayService.stop(this)
                                 isServiceRunning = false
                             } else {
-                                IslandOverlayService.start(this)
-                                isServiceRunning = true
+                                if (!Settings.canDrawOverlays(this)) {
+                                    requestOverlayPermission()
+                                } else {
+                                    IslandOverlayService.start(this)
+                                    isServiceRunning = true
+                                }
                             }
                         },
                         onTriggerPeek = {
@@ -188,6 +192,7 @@ class MainActivity : ComponentActivity() {
             .getEnabledListenerPackages(this)
             .contains(packageName)
         hasAccessibilityPermission = IslandAccessibilityService.isAccessibilityEnabled(this)
+        isServiceRunning = IslandOverlayService.isRunning()
     }
 
     private fun requestOverlayPermission() {
