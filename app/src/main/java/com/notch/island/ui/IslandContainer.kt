@@ -244,7 +244,7 @@ fun IslandContainer(
     Box(
         modifier = modifier
             .padding(top = targetBounds.topPadding)
-            .padding(horizontal = gestureSlopPadding, vertical = 6.dp)
+            .padding(horizontal = gestureSlopPadding)
             .islandGestures(currentState = state, listener = gestureListener),
         contentAlignment = Alignment.TopCenter
     ) {

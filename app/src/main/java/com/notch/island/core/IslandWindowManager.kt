@@ -191,13 +191,13 @@ object IslandWindowManager {
             }
 
             is IslandState.Collapsed -> {
-                // Sized to exactly encapsulate camera punch hole and status pill
-                val baseWidthDp = maxOf(cutout.widthDp + 46.dp, 136.dp)
-                val secondaryBonus = if (state.secondaryBubble != null) 58.dp else 0.dp
+                // Sized to comfortably encapsulate camera punch hole and status pill
+                val baseWidthDp = maxOf(cutout.widthDp + 40.dp, 118.dp)
+                val secondaryBonus = if (state.secondaryBubble != null) 54.dp else 0.dp
                 val contentWidthDp = (state.customPillWidthDp?.dp ?: baseWidthDp) + secondaryBonus
                 // Add 28dp gesture slop room (14dp left + 14dp right)
                 val windowWidthDp = contentWidthDp + 28.dp
-                val windowHeightDp = maxOf(cutout.heightDp + 18.dp, 56.dp)
+                val windowHeightDp = 48.dp
 
                 params.width = (windowWidthDp.value * density).toInt()
                 params.height = (windowHeightDp.value * density).toInt()
@@ -205,8 +205,8 @@ object IslandWindowManager {
             }
 
             is IslandState.Peek -> {
-                val bannerWidthDp = minOf(screenWidthDp * 0.94f, 380.dp) + 28.dp
-                val bannerHeightDp = maxOf(cutout.heightDp + 26.dp, 68.dp)
+                val bannerWidthDp = minOf(screenWidthDp * 0.94f, 370.dp) + 28.dp
+                val bannerHeightDp = 58.dp
 
                 params.width = (bannerWidthDp.value * density).toInt()
                 params.height = (bannerHeightDp.value * density).toInt()

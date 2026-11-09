@@ -40,9 +40,12 @@ object IslandDimensions {
             }
 
             is IslandState.Collapsed -> {
-                val baseWidth = maxOf(cutout.widthDp + 38.dp, 126.dp)
+                // Sleek tailored pill breadth comfortably hugging the punch hole without excess vertical fatness
+                // Camera lens is ~25dp diameter, centered at Y=24.5dp.
+                // 35dp pill height with 7dp top padding centers the pill with ~5.3dp padding on all sides.
+                val baseWidth = maxOf(cutout.widthDp + 40.dp, 118.dp)
                 val resolvedWidth = state.customPillWidthDp?.dp ?: baseWidth
-                val resolvedHeight = maxOf(cutout.heightDp + 8.dp, 37.dp)
+                val resolvedHeight = 35.dp
 
                 IslandTargetBounds(
                     width = resolvedWidth,
@@ -50,13 +53,13 @@ object IslandDimensions {
                     cornerRadius = resolvedHeight / 2,
                     elevation = 4.dp,
                     alpha = 1f,
-                    topPadding = topCutoutInsetDp
+                    topPadding = 7.dp
                 )
             }
 
             is IslandState.Peek -> {
-                val resolvedWidth = minOf(screenWidthDp * 0.92f, 380.dp)
-                val resolvedHeight = maxOf(cutout.heightDp + 16.dp, 46.dp)
+                val resolvedWidth = minOf(screenWidthDp * 0.92f, 370.dp)
+                val resolvedHeight = 44.dp
 
                 IslandTargetBounds(
                     width = resolvedWidth,
@@ -64,7 +67,7 @@ object IslandDimensions {
                     cornerRadius = resolvedHeight / 2,
                     elevation = 10.dp,
                     alpha = 1f,
-                    topPadding = topCutoutInsetDp
+                    topPadding = 5.dp
                 )
             }
 
