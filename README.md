@@ -8,14 +8,14 @@
 ![Language](https://img.shields.io/badge/Language-Kotlin_2.0.21-red?style=for-the-badge&logo=kotlin)
 ![UI](https://img.shields.io/badge/UI-Jetpack_Compose_BOM-black?style=for-the-badge&logo=jetpackcompose)
 ![Design](https://img.shields.io/badge/Aesthetic-Nothing_OS_DotMatrix-D71921?style=for-the-badge)
-![Status](https://img.shields.io/badge/Release-v1.0.0-black?style=for-the-badge&logo=github)
+![Status](https://img.shields.io/badge/Release-v1.0.1-black?style=for-the-badge&logo=github)
 
 <br/>
 
 **A hyper-fluid, physics-driven Dynamic Island overlay engineered natively in modern Jetpack Compose for Android.**  
 Specially calibrated for **Nothing Phone (4b)** with **Ndot 57 dot-matrix typography**, authentic **Geist styling**, deep OLED `#000000` aesthetics, and continuous spring mechanics.
 
-[⬇ Download Latest APK (v1.0.0)](https://github.com/ZeroiJ/notch/releases) • [Architecture Guide](docs/THE_NOTCH_ARCHITECTURE.md) • [iOS Island Deep Dive](docs/IPHONE_DYNAMIC_ISLAND_DEEP_DIVE.md)
+[⬇ Download Latest APK (v1.0.1)](https://github.com/ZeroiJ/notch/releases) • [Architecture Guide](docs/THE_NOTCH_ARCHITECTURE.md) • [iOS Island Deep Dive](docs/IPHONE_DYNAMIC_ISLAND_DEEP_DIVE.md)
 
 </div>
 
@@ -46,7 +46,7 @@ Specially calibrated for **Nothing Phone (4b)** with **Ndot 57 dot-matrix typogr
 ```
 
 ### 1. Hardware Cutout Wrapping & Continuous Squircle
-Auto-detects the exact location of the camera sensor at runtime. On the Nothing Phone (4b), it wraps the top-center 126px cutout into an elegant 120dp × 37dp idle pill, morphing outward during alerts.
+Auto-detects the exact location of the camera sensor at runtime. On the Nothing Phone (4b), it wraps the top-center cutout into an ultra-sleek 118dp × 35dp idle pill (calibrated with 7dp top offset for symmetric 5.3dp punch hole clearance), morphing outward during alerts.
 
 ### 2. Lock Screen & Keyguard Persistence
 Unlike standard overlays that vanish when locking the phone, Dynamic Notch leverages `IslandAccessibilityService` (`TYPE_ACCESSIBILITY_OVERLAY`). The island remains visible and interactable across the Lock Screen, Always-On Display (AOD), and full-screen games.
@@ -78,7 +78,7 @@ The island uses a 14dp touch slop expansion perimeter (`pillGestureRoom`) so tou
 | Mode | Gesture | Target State | Spring Configuration |
 | :--- | :--- | :--- | :--- |
 | **Idle** | Swipe Down | **Expanded** (330dp × 160dp) | $\zeta = 0.65, k = 650$ (ExpansionMorph) |
-| **Expanded** | Swipe Up | **Collapsed** (120dp × 37dp) | $\zeta = 0.70, k = 1200$ (DragTracking) |
+| **Expanded** | Swipe Up | **Collapsed** (118dp × 35dp) | $\zeta = 0.70, k = 1200$ (DragTracking) |
 | **Any** | Horizontal Swipe Out | **Tucked** (Hidden into edge) | $\zeta = 0.70, k = 300$ (IdleTuck) |
 | **Tucked** | Tap Edge | **Restored** | $\zeta = 0.50, k = 850$ (ExpressiveAlert) |
 | **Idle** | Single Tap | **Peek / Cycle Activity** | $\zeta = 0.50, k = 850$ (ExpressiveAlert) |
@@ -125,7 +125,7 @@ flowchart TD
 ## ✦ Getting Started & Installation
 
 ### Option 1: Install Pre-Built APK
-1. Download the latest `DynamicNotch-v1.0.0-release.apk` from the **[Releases](https://github.com/ZeroiJ/notch/releases)** page.
+1. Download the latest `DynamicNotch-v1.0.1-release.apk` from the **[Releases](https://github.com/ZeroiJ/notch/releases)** page.
 2. Install the APK on your Android device (Nothing Phone recommended).
 3. Grant required permissions from the onboard setup bench:
    * **Overlay Permission:** `Settings > Display over other apps > Allow`
