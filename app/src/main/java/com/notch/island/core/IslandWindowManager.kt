@@ -106,14 +106,12 @@ object IslandWindowManager {
             setOnApplyWindowInsetsListener { _, insets ->
                 val updated = CutoutHelper.resolveCutout(context, insets)
                 currentCutoutInfo = updated
-                layoutParams?.let { p ->
-                    calculateAndApplyWindowDimensions(p, islandState, updated)
-                    if (isAttached && isAttachedToWindow) {
-                        try {
-                            windowManager?.updateViewLayout(this, p)
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Failed to update layout from insets", e)
-                        }
+                calculateAndApplyWindowDimensions(params, islandState, updated)
+                if (isAttached && isAttachedToWindow) {
+                    try {
+                        windowManager?.updateViewLayout(this, params)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to update layout from insets", e)
                     }
                 }
                 insets
