@@ -35,8 +35,12 @@ jobs:
       - name: Prepare Release Artifacts
         run: |
           mkdir -p release-artifacts
-          cp app/build/outputs/apk/release/*.apk release-artifacts/DynamicNotch-v1.0.0-release.apk
-          cp app/build/outputs/apk/debug/*.apk release-artifacts/DynamicNotch-v1.0.0-debug.apk
+          TAG_OR_VER="${{ github.ref_name }}"
+          if [ -z "$TAG_OR_VER" ] || [ "$TAG_OR_VER" = "main" ]; then
+            TAG_OR_VER="v1.0.1"
+          fi
+          cp app/build/outputs/apk/release/*.apk release-artifacts/DynamicNotch-${TAG_OR_VER}-release.apk
+          cp app/build/outputs/apk/debug/*.apk release-artifacts/DynamicNotch-${TAG_OR_VER}-debug.apk
           ls -la release-artifacts/
 
       - name: Upload Artifacts
@@ -49,13 +53,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         with:
-          tag_name: v1.0.0
-          name: "Dynamic Notch v1.0.0 — Nothing Phone (4b) Edition"
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.0.1' }}
+          name: "Dynamic Notch ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.0.1' }} — Nothing Phone (4b) Edition"
           draft: false
           prerelease: false
           generate_release_notes: true
-          files: |
-            release-artifacts/DynamicNotch-v1.0.0-release.apk
-            release-artifacts/DynamicNotch-v1.0.0-debug.apk
+          files: release-artifacts/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
