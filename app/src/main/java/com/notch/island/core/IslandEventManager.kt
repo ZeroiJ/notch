@@ -194,4 +194,32 @@ object IslandEventManager {
             )
         )
     }
+
+    /**
+     * Expands the Nothing OS Quick Controls drawer when the island is tapped while idle.
+     */
+    fun expandQuickControls() {
+        IslandOverlayService.updateState(
+            IslandState.Expanded(
+                type = ExpandedContentType.GENERIC,
+                title = "NOTHING OS (4B)",
+                subtitle = "QUICK SYSTEM CONTROLS",
+                payload = null
+            )
+        )
+    }
+
+    /**
+     * Posts an incoming call alert banner and allows direct answer/decline.
+     */
+    fun postIncomingCall(callerName: String, callerNumber: String? = null) {
+        IslandOverlayService.updateState(
+            IslandState.Expanded(
+                type = ExpandedContentType.CALL,
+                title = callerName,
+                subtitle = callerNumber ?: "Incoming Cellular Call",
+                payload = null
+            )
+        )
+    }
 }

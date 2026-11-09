@@ -80,20 +80,23 @@ object CutoutHelper {
             }
         }
 
-        // Fallback or Nothing Phone calibration
-        if (isNothingDevice()) {
-            hasCutout = true
-            // Nothing Phone centered punch hole calibration
-            val nothingPunchWidthPx = (34 * density).toInt()
-            val left = (screenWidth - nothingPunchWidthPx) / 2
-            val bottom = (48 * density).toInt()
-            cutoutRect = Rect(left, 0, left + nothingPunchWidthPx, bottom)
-            safeTop = bottom
-        } else if (!hasCutout || cutoutRect.isEmpty) {
-            val fallbackHeightPx = (statusBarHeight.coerceAtLeast((28 * density).toInt()))
-            val fallbackWidthPx = (110 * density).toInt() // Standard pill width (~110dp)
-            val left = (screenWidth - fallbackWidthPx) / 2
-            cutoutRect = Rect(left, 0, left + fallbackWidthPx, fallbackHeightPx)
+        // If no hardware cutout was reported by WindowInsets, use device-specific calibration
+        if (!hasCutout || cutoutRect.isEmpty) {
+            if (isNothingDevice()) {
+                hasCutout = true
+                // Nothing Phone (4b) exact hardware punch hole calibration:
+                // 1080x2344 display, 420dpi (2.625 density), cutout at Rect(497, 0, 583, 126)
+                val punchWidthPx = (33 * density).toInt()
+                val left = (screenWidth - punchWidthPx) / 2
+                val bottom = (48 * density).toInt()
+                cutoutRect = Rect(left, 0, left + punchWidthPx, bottom)
+                safeTop = bottom
+            } else {
+                val fallbackHeightPx = statusBarHeight.coerceAtLeast((28 * density).toInt())
+                val fallbackWidthPx = (110 * density).toInt() // Standard pill width (~110dp)
+                val left = (screenWidth - fallbackWidthPx) / 2
+                cutoutRect = Rect(left, 0, left + fallbackWidthPx, fallbackHeightPx)
+            }
         }
 
         val position = determinePosition(cutoutRect, screenWidth, hasCutout)

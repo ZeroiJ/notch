@@ -114,17 +114,20 @@ class MainActivity : ComponentActivity() {
                                 IslandOverlayService.stop(this)
                                 isServiceRunning = false
                             } else {
-                                if (!Settings.canDrawOverlays(this)) {
-                                    requestOverlayPermission()
-                                } else {
+                                if (hasAccessibilityPermission) {
                                     IslandOverlayService.start(this)
                                     isServiceRunning = true
+                                } else if (Settings.canDrawOverlays(this)) {
+                                    IslandOverlayService.start(this)
+                                    isServiceRunning = true
+                                } else {
+                                    requestOverlayPermission()
                                 }
                             }
                         },
                         onTriggerPeek = {
                             IslandEventManager.postPeek(
-                                title = "AirPods Pro Connected",
+                                title = "Nothing Ear (a) Connected",
                                 subtitle = "Battery 94% • High Fidelity",
                                 trailingText = "94%",
                                 durationMs = 3500L
@@ -147,10 +150,16 @@ class MainActivity : ComponentActivity() {
                         },
                         onTriggerQuickReply = {
                             IslandEventManager.postNotificationAlert(
-                                title = "Nothing OS Notification",
-                                subtitle = "Hey, swipe down or tap to reply inline!",
+                                title = "Nothing Community",
+                                subtitle = "Hey! Tap or drag down to reply inline.",
                                 trailingText = "CHAT",
                                 replyPayload = null
+                            )
+                        },
+                        onTriggerIncomingCall = {
+                            IslandEventManager.postIncomingCall(
+                                callerName = "Carl Pei",
+                                callerNumber = "+44 7911 123456 • Nothing HQ"
                             )
                         },
                         onToggleFlashlight = {
@@ -192,7 +201,7 @@ class MainActivity : ComponentActivity() {
             .getEnabledListenerPackages(this)
             .contains(packageName)
         hasAccessibilityPermission = IslandAccessibilityService.isAccessibilityEnabled(this)
-        isServiceRunning = IslandOverlayService.isRunning()
+        isServiceRunning = IslandOverlayService.isRunning() || com.notch.island.core.IslandWindowManager.isAttached
     }
 
     private fun requestOverlayPermission() {
@@ -238,6 +247,7 @@ fun MainScreen(
     onStartTimer: () -> Unit,
     onTriggerDualIsland: () -> Unit,
     onTriggerQuickReply: () -> Unit,
+    onTriggerIncomingCall: () -> Unit,
     onToggleFlashlight: () -> Unit,
     onTriggerHide: () -> Unit
 ) {
@@ -269,10 +279,15 @@ fun MainScreen(
         Spacer(modifier = Modifier.height(24.dp))
 
         // Service Start / Stop Button
-        val canStart = hasOverlayPermission && hasNotificationPermission
+        val canStart = hasOverlayPermission || hasAccessibilityPermission
         Button(
-            onClick = onToggleService,
-            enabled = canStart,
+            onClick = {
+                if (!canStart && !isServiceRunning) {
+                    onRequestOverlayPermission()
+                } else {
+                    onToggleService()
+                }
+            },
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = if (isServiceRunning) NothingRed else AccentGreen,
@@ -289,9 +304,9 @@ fun MainScreen(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = if (isServiceRunning) "Stop Overlay Service" else "Start Dynamic Island Overlay",
+                text = if (isServiceRunning) "STOP DYNAMIC NOTCH" else "START DYNAMIC NOTCH",
                 fontWeight = FontWeight.Bold,
-                fontFamily = GeistFontFamily,
+                fontFamily = NdotFontFamily,
                 fontSize = 15.sp,
                 color = Color.White
             )
@@ -373,6 +388,16 @@ fun MainScreen(
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
+                            onClick = onTriggerIncomingCall,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Rounded.Notifications, null, tint = AccentGreen, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Call Banner", fontSize = 11.sp, fontFamily = NdotFontFamily, color = TextPrimary)
+                        }
+
+                        OutlinedButton(
                             onClick = onToggleFlashlight,
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(12.dp)
@@ -381,7 +406,11 @@ fun MainScreen(
                             Spacer(Modifier.width(4.dp))
                             Text("Flashlight", fontSize = 11.sp, fontFamily = NdotFontFamily, color = TextPrimary)
                         }
+                    }
 
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
                             onClick = onTriggerPeek,
                             modifier = Modifier.weight(1f),
@@ -390,6 +419,16 @@ fun MainScreen(
                             Icon(Icons.Rounded.Notifications, null, tint = AccentGreen, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(4.dp))
                             Text("Peek Alert", fontSize = 11.sp, fontFamily = NdotFontFamily, color = TextPrimary)
+                        }
+
+                        OutlinedButton(
+                            onClick = onTriggerHide,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Rounded.VisibilityOff, null, tint = TextSecondary, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Hide Notch", fontSize = 11.sp, fontFamily = NdotFontFamily, color = TextSecondary)
                         }
                     }
                 }

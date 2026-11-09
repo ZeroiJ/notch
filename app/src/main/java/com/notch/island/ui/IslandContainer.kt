@@ -163,19 +163,22 @@ fun IslandContainer(
             override fun onTap() {
                 when (state) {
                     is IslandState.Collapsed -> {
-                        // Expand active session
+                        // Expand active session, or open Quick Controls if idle
                         val currentTimer = TimerManager.timerState.value
+                        val currentMedia = IslandEventManager.currentMediaTrack.value
                         if (currentTimer != null) {
                             IslandEventManager.expandTimer()
-                        } else {
+                        } else if (currentMedia != null) {
                             IslandEventManager.expandActiveMedia()
+                        } else {
+                            IslandEventManager.expandQuickControls()
                         }
                     }
                     is IslandState.Peek -> {
                         IslandEventManager.expandActiveNotification()
                     }
                     is IslandState.Expanded -> {
-                        // Collapse
+                        // Collapse back to resting state
                         IslandEventManager.resolveAndApplyCurrentState()
                     }
                     is IslandState.Hidden -> {
@@ -187,10 +190,13 @@ fun IslandContainer(
             override fun onLongPress() {
                 if (state is IslandState.Collapsed || state is IslandState.Peek) {
                     val currentTimer = TimerManager.timerState.value
+                    val currentMedia = IslandEventManager.currentMediaTrack.value
                     if (currentTimer != null) {
                         IslandEventManager.expandTimer()
-                    } else {
+                    } else if (currentMedia != null) {
                         IslandEventManager.expandActiveMedia()
+                    } else {
+                        IslandEventManager.expandQuickControls()
                     }
                 }
             }
@@ -203,10 +209,13 @@ fun IslandContainer(
                 dragExtensionYPx = 0f
                 if (releasedPastThreshold) {
                     val currentTimer = TimerManager.timerState.value
+                    val currentMedia = IslandEventManager.currentMediaTrack.value
                     if (currentTimer != null) {
                         IslandEventManager.expandTimer()
-                    } else {
+                    } else if (currentMedia != null) {
                         IslandEventManager.expandActiveMedia()
+                    } else {
+                        IslandEventManager.expandQuickControls()
                     }
                 }
             }
@@ -510,6 +519,25 @@ private fun ExpandedInteractiveCardContent(
                 // Feature 5: Inline Messaging Quick-Reply Card
                 ExpandedNotificationReplyContent(
                     replyPayload = state.payload as? QuickReplyPayload,
+                    title = state.title,
+                    subtitle = state.subtitle,
+                    context = context,
+                    onCollapse = onCollapse
+                )
+            }
+
+            ExpandedContentType.CALL -> {
+                // Feature 3: Live Incoming Call Card
+                ExpandedCallContent(
+                    title = state.title,
+                    subtitle = state.subtitle,
+                    onCollapse = onCollapse
+                )
+            }
+
+            ExpandedContentType.GENERIC -> {
+                // Feature 5: System Status & Quick Controls Dashboard
+                ExpandedGenericControlsContent(
                     title = state.title,
                     subtitle = state.subtitle,
                     context = context,
@@ -946,6 +974,167 @@ private fun QuickControlsToolbar(
                 tint = TextSecondary,
                 modifier = Modifier.size(20.dp)
             )
+        }
+    }
+}
+
+@Composable
+private fun ExpandedCallContent(
+    title: String,
+    subtitle: String?,
+    onCollapse: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(AccentGreen.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Call,
+                    contentDescription = null,
+                    tint = AccentGreen,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = title,
+                    color = TextPrimary,
+                    fontSize = 15.sp,
+                    fontFamily = GeistFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = subtitle ?: "Incoming Cellular Call",
+                    color = TextSecondary,
+                    fontSize = 12.sp,
+                    fontFamily = GeistFontFamily,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Decline Button
+            IconButton(
+                onClick = onCollapse,
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(NothingRed)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Call,
+                    contentDescription = "Decline",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            // Answer Button
+            IconButton(
+                onClick = onCollapse,
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(AccentGreen)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Call,
+                    contentDescription = "Answer",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExpandedGenericControlsContent(
+    title: String,
+    subtitle: String?,
+    context: Context,
+    onCollapse: () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(
+                    text = title,
+                    color = TextPrimary,
+                    fontSize = 14.sp,
+                    fontFamily = NdotFontFamily,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = subtitle ?: "SYSTEM OVERLAY ACTIVE",
+                    color = TextSecondary,
+                    fontSize = 11.sp,
+                    fontFamily = GeistFontFamily
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFF1E1E1E))
+                    .border(0.5.dp, IslandBorder, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = "NOTHING (4B)",
+                    color = NothingRed,
+                    fontSize = 10.sp,
+                    fontFamily = NdotFontFamily,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Tap outside or swipe up to collapse",
+                fontSize = 11.sp,
+                fontFamily = GeistFontFamily,
+                color = NothingMuted
+            )
+
+            OutlinedButton(
+                onClick = onCollapse,
+                shape = RoundedCornerShape(10.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+            ) {
+                Text("CLOSE", fontFamily = NdotFontFamily, fontSize = 10.sp, color = NothingRed)
+            }
         }
     }
 }

@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Build
 import android.provider.Settings
 import android.view.accessibility.AccessibilityEvent
+import com.notch.island.core.IslandWindowManager
 
 /**
  * Accessibility Service tier that elevates the Dynamic Island overlay to
@@ -13,12 +14,15 @@ import android.view.accessibility.AccessibilityEvent
  * This provides:
  * 1. Overlay persistence across Lock Screen, AOD, and System UI pulldown.
  * 2. Execution of system actions (Notification Shade pull, Quick Settings, Lock Screen).
+ * 3. Native host token for high-priority display layers without BadTokenException.
  */
 class IslandAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        // Elevate Dynamic Island overlay to TYPE_ACCESSIBILITY_OVERLAY
+        IslandWindowManager.attachWindow(this, isAccessibility = true)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
