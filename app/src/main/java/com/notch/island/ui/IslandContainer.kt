@@ -56,6 +56,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
@@ -559,7 +560,7 @@ private fun ExpandedMediaContent(
             ) {
                 if (mediaTrack?.albumArt != null) {
                     androidx.compose.foundation.Image(
-                        bitmap = androidx.compose.ui.graphics.asImageBitmap(mediaTrack.albumArt),
+                        bitmap = mediaTrack.albumArt.asImageBitmap(),
                         contentDescription = "Album Art",
                         modifier = Modifier.size(46.dp)
                     )
