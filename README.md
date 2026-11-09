@@ -2,6 +2,8 @@
 
 <div align="center">
 
+<img src="docs/app_icon.png" width="128" height="128" alt="Dynamic Notch App Icon" /><br/><br/>
+
 ![Platform](https://img.shields.io/badge/Platform-Android_9.0+_--_API_35-black?style=for-the-badge&logo=android)
 ![Language](https://img.shields.io/badge/Language-Kotlin_2.0.21-red?style=for-the-badge&logo=kotlin)
 ![UI](https://img.shields.io/badge/UI-Jetpack_Compose_BOM-black?style=for-the-badge&logo=jetpackcompose)
