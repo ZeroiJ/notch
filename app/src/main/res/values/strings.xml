@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Dynamic Notch</string>
+    <string name="overlay_notification_channel">Island Service</string>
+    <string name="overlay_notification_channel_desc">Keeps the Dynamic Island overlay running</string>
+    <string name="overlay_notification_title">Dynamic Island Active</string>
+    <string name="overlay_notification_content">Display cutout wrapping overlay is active</string>
+    <string name="accessibility_service_description">Enables Dynamic Island persistence on lock screen and global gestures</string>
+</resources>
