@@ -1,17 +1,20 @@
 package com.notch.island.ui
 
 import android.content.Context
+import android.os.Build
+import android.view.HapticFeedbackConstants
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -56,9 +59,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -95,7 +101,15 @@ import com.notch.island.ui.theme.TextSecondary
 import java.util.Locale
 
 /**
- * Continuous fluid spring-animated Dynamic Island container with Nothing OS styling.
+ * High-performance 120Hz GPU-accelerated Dynamic Island container.
+ *
+ * Implements strict 120Hz architecture:
+ * 1. ZERO animated layout dimensions (no animateDpAsState, no Modifier.size/width/height animation).
+ * 2. Offloads all scaling and morphing to RenderNode/GPU via Modifier.graphicsLayer.
+ * 3. TransformOrigin(0.5f, 0f) scales directly outward from the camera punch-hole.
+ * 4. Critically damped spring physics: organic overshoot on expand, snap on collapse.
+ * 5. Memory-cached SquircleShape with zero-allocation path caching.
+ * 6. Synchronized tactile haptics (GESTURE_START on initiate, CLOCK_TICK on settle).
  */
 @Composable
 fun IslandContainer(
@@ -106,55 +120,80 @@ fun IslandContainer(
 ) {
     val density = LocalDensity.current
     val context = LocalContext.current
+    val view = LocalView.current
 
     // Interactive downward drag displacement
     var dragExtensionYPx by remember { mutableFloatStateOf(0f) }
-    val dragExtensionYDp = with(density) { dragExtensionYPx.toDp() }
 
-    // Resolve target resting geometry
-    val targetBounds = remember(state, cutout) {
-        IslandDimensions.resolve(state, cutout)
-    }
+    // Static layout dimensions for the container (never animated per frame)
+    val screenWidthDp = with(density) { cutout.screenWidthPx.toDp() }
+    val baseWidthDp = minOf(screenWidthDp * 0.94f, 380.dp)
+    val baseHeightDp = 200.dp
 
-    // Select spring physics profile according to state context
-    val currentSpringSpec = remember(state) {
+    val isExpanded = state is IslandState.Expanded
+    val isPeek = state is IslandState.Peek
+    val isHidden = state is IslandState.Hidden
+    val isCollapsed = state is IslandState.Collapsed
+
+    // Resolve target scale ratios for GPU hardware matrix scaling
+    val (targetScaleX, targetScaleY) = remember(state, cutout, baseWidthDp, baseHeightDp) {
         when (state) {
-            is IslandState.Peek -> IslandSpringPhysics.AlertDpSpec
-            is IslandState.Expanded -> IslandSpringPhysics.MorphDpSpec
-            is IslandState.Hidden -> IslandSpringPhysics.TuckDpSpec
-            is IslandState.Collapsed -> IslandSpringPhysics.MorphDpSpec
+            is IslandState.Hidden -> 0f to 0f
+            is IslandState.Collapsed -> {
+                val collapsedWidth = (state.customPillWidthDp?.dp ?: 118.dp)
+                val collapsedHeight = 35.dp
+                (collapsedWidth / baseWidthDp).coerceIn(0.05f, 1f) to
+                    (collapsedHeight / baseHeightDp).coerceIn(0.05f, 1f)
+            }
+            is IslandState.Peek -> {
+                val peekWidth = minOf(screenWidthDp * 0.92f, 370.dp)
+                val peekHeight = 58.dp
+                (peekWidth / baseWidthDp).coerceIn(0.05f, 1f) to
+                    (peekHeight / baseHeightDp).coerceIn(0.05f, 1f)
+            }
+            is IslandState.Expanded -> 1f to 1f
         }
     }
 
-    // Continuous animated dimensions
-    val animatedWidth by animateDpAsState(
-        targetValue = targetBounds.width,
-        animationSpec = currentSpringSpec,
-        label = "IslandWidth"
+    // Critically damped spring physics (Expanding = overshoot 0.78/380, Collapsing = snap 1.0/520)
+    val currentAnimationSpec = if (isExpanded || isPeek) {
+        IslandSpringPhysics.expandSizeSpec<Float>()
+    } else {
+        IslandSpringPhysics.collapseSizeSpec<Float>()
+    }
+
+    // Haptic Syncing: Trigger GESTURE_START when morph initiates
+    LaunchedEffect(state) {
+        val hapticStart = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            HapticFeedbackConstants.GESTURE_START
+        } else {
+            HapticFeedbackConstants.CLOCK_TICK
+        }
+        view.performHapticFeedback(hapticStart)
+    }
+
+    // GPU-accelerated scaling states with completion haptic
+    val scaleX by animateFloatAsState(
+        targetValue = targetScaleX,
+        animationSpec = currentAnimationSpec,
+        label = "IslandScaleX",
+        finishedListener = {
+            // Trigger CLOCK_TICK on morph completion to ground UI to glass
+            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+        }
     )
 
-    val animatedHeight by animateDpAsState(
-        targetValue = targetBounds.height + dragExtensionYDp,
-        animationSpec = if (dragExtensionYPx > 0f) IslandSpringPhysics.DragTracking.toSpringSpec() else currentSpringSpec,
-        label = "IslandHeight"
+    val scaleY by animateFloatAsState(
+        targetValue = targetScaleY,
+        animationSpec = currentAnimationSpec,
+        label = "IslandScaleY"
     )
 
-    val animatedCornerRadius by animateDpAsState(
-        targetValue = targetBounds.cornerRadius,
-        animationSpec = currentSpringSpec,
-        label = "IslandCornerRadius"
-    )
-
-    val animatedElevation by animateDpAsState(
-        targetValue = targetBounds.elevation,
-        animationSpec = currentSpringSpec,
-        label = "IslandElevation"
-    )
-
-    val animatedAlpha by animateFloatAsState(
-        targetValue = targetBounds.alpha,
-        animationSpec = IslandSpringPhysics.ExpansionMorph.toSpringSpec(),
-        label = "IslandAlpha"
+    val topPaddingPx = with(density) { 7.dp.toPx() }
+    val translationY by animateFloatAsState(
+        targetValue = topPaddingPx + dragExtensionYPx,
+        animationSpec = if (dragExtensionYPx > 0f) IslandSpringPhysics.DragFloatSpec else currentAnimationSpec,
+        label = "IslandTranslationY"
     )
 
     // Gestures listener implementation
@@ -163,7 +202,6 @@ fun IslandContainer(
             override fun onTap() {
                 when (state) {
                     is IslandState.Collapsed -> {
-                        // Expand active session, or open Quick Controls if idle
                         val currentTimer = TimerManager.timerState.value
                         val currentMedia = IslandEventManager.currentMediaTrack.value
                         if (currentTimer != null) {
@@ -178,7 +216,6 @@ fun IslandContainer(
                         IslandEventManager.expandActiveNotification()
                     }
                     is IslandState.Expanded -> {
-                        // Collapse back to resting state
                         IslandEventManager.resolveAndApplyCurrentState()
                     }
                     is IslandState.Hidden -> {
@@ -239,57 +276,120 @@ fun IslandContainer(
         }
     }
 
-    // Outer layout with pillGestureRoom (14dp invisible touch slop)
-    val gestureSlopPadding = 14.dp
+    // Pre-allocated SquircleShape with memory caching
+    val squircleShape = remember { SquircleShape(cornerRadius = 32.dp) }
+
     Box(
-        modifier = modifier
-            .padding(top = targetBounds.topPadding)
-            .padding(horizontal = gestureSlopPadding)
-            .islandGestures(currentState = state, listener = gestureListener),
+        modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.TopCenter
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
-            // Main Dynamic Island Body
-            val squircleShape = SquircleShape(animatedCornerRadius)
+        // Outside tap interception when expanded: collapses island on background tap
+        if (isExpanded || isPeek) {
             Box(
                 modifier = Modifier
-                    .width(animatedWidth)
-                    .height(animatedHeight)
-                    .alpha(animatedAlpha)
-                    .shadow(elevation = animatedElevation, shape = squircleShape)
-                    .clip(squircleShape)
-                    .background(OledBlack)
-                    .border(width = 0.5.dp, color = IslandBorder, shape = squircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                when (state) {
-                    is IslandState.Collapsed -> {
-                        CompactPillContent(state = state, cutout = cutout)
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        gestureListener.onSwipeUp()
                     }
-                    is IslandState.Peek -> {
+            )
+        }
+
+        Row(
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            // Main Dynamic Island Body: static size, scaled exclusively on GPU via graphicsLayer
+            Box(
+                modifier = Modifier
+                    .width(baseWidthDp)
+                    .height(baseHeightDp)
+                    .graphicsLayer {
+                        this.scaleX = scaleX
+                        this.scaleY = scaleY
+                        this.translationY = translationY
+                        this.transformOrigin = TransformOrigin(0.5f, 0f) // Scale from the physical camera punch-hole
+                        this.clip = true
+                        this.shape = squircleShape
+                        this.shadowElevation = if (isExpanded) 16f else if (isPeek) 10f else 4f
+                    }
+                    .background(OledBlack, squircleShape)
+                    .border(width = 0.5.dp, color = IslandBorder, shape = squircleShape)
+                    .islandGestures(currentState = state, listener = gestureListener),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                // Collapsed Compact Content: rendered at native 1:1 scale via counter-scale
+                if (scaleY < 0.45f) {
+                    val compactAlpha = ((0.45f - scaleY) / 0.15f).coerceIn(0f, 1f)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                val invSx = if (scaleX > 0.05f) 1f / scaleX else 1f
+                                val invSy = if (scaleY > 0.05f) 1f / scaleY else 1f
+                                this.scaleX = invSx
+                                this.scaleY = invSy
+                                this.transformOrigin = TransformOrigin(0.5f, 0f)
+                                this.alpha = compactAlpha
+                            },
+                        contentAlignment = Alignment.TopCenter
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(if (state is IslandState.Collapsed) state.customPillWidthDp?.dp ?: 118.dp else 118.dp)
+                                .height(35.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CompactPillContent(
+                                state = state as? IslandState.Collapsed ?: IslandState.Collapsed(),
+                                cutout = cutout
+                            )
+                        }
+                    }
+                }
+
+                // Peek Banner Content
+                if (scaleY in 0.2f..0.65f && state is IslandState.Peek) {
+                    val peekAlpha = ((scaleY - 0.2f) / 0.25f).coerceIn(0f, 1f)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                this.alpha = peekAlpha
+                            },
+                        contentAlignment = Alignment.TopCenter
+                    ) {
                         PeekBannerContent(state = state)
                     }
-                    is IslandState.Expanded -> {
+                }
+
+                // Expanded Interactive Card Content
+                if (scaleY >= 0.35f && state is IslandState.Expanded) {
+                    val expandedAlpha = ((scaleY - 0.35f) / 0.35f).coerceIn(0f, 1f)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                this.alpha = expandedAlpha
+                            }
+                    ) {
                         ExpandedInteractiveCardContent(
                             state = state,
                             context = context,
                             onCollapse = { gestureListener.onSwipeUp() }
                         )
                     }
-                    is IslandState.Hidden -> {}
                 }
             }
 
             // Feature 6: Multi-Activity Secondary Detached Bubble
-            if (state is IslandState.Collapsed && state.secondaryBubble != null) {
+            if (state is IslandState.Collapsed && state.secondaryBubble != null && scaleY < 0.45f) {
                 Spacer(modifier = Modifier.width(8.dp))
                 SecondaryDetachedBubble(
                     subContent = state.secondaryBubble,
                     onClick = {
-                        // Tapping detached bubble expands secondary activity (e.g. Timer)
                         IslandEventManager.expandTimer()
                     }
                 )

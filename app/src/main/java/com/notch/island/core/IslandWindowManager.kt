@@ -11,21 +11,23 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.unit.dp
-import com.notch.island.animation.IslandDimensions
 import com.notch.island.model.CollapsedSubContent
-import com.notch.island.model.ExpandedContentType
 import com.notch.island.model.IslandState
 import com.notch.island.ui.IslandRootView
 import com.notch.island.ui.theme.IslandTheme
 
 /**
- * Centralized WindowManager coordinator managing overlay view hierarchy,
- * dynamic boundary resizing, outside touch detection, and accessibility token binding.
+ * High-performance 120Hz WindowManager coordinator with static container sizing.
+ *
+ * Implements Zero-Bounds-Animation architecture:
+ * 1. Creates a static, invisible container (MATCH_PARENT x 800px) with FLAG_HARDWARE_ACCELERATED.
+ * 2. NEVER animates or modifies width, height, x, or y coordinates during morphing frames.
+ * 3. Toggles FLAG_WATCH_OUTSIDE_TOUCH only upon state change completion.
  */
 object IslandWindowManager {
 
     private const val TAG = "IslandWindowManager"
+    private const val STATIC_CONTAINER_HEIGHT_PX = 800
 
     private var windowManager: WindowManager? = null
     private var overlayComposeView: ComposeView? = null
@@ -49,7 +51,7 @@ object IslandWindowManager {
         private set
 
     /**
-     * Attaches the dynamic island overlay window.
+     * Attaches the static Dynamic Island overlay window.
      * Prefers Accessibility Service token (2032) when available, falls back to Application Overlay (2038).
      */
     @Synchronized
@@ -70,21 +72,25 @@ object IslandWindowManager {
 
         overlayLifecycleOwner.onCreate()
 
-        val params = WindowManager.LayoutParams().apply {
-            type = if (isAccessibility) {
+        // Static WindowManager container: MATCH_PARENT width, static 800px height, GPU accelerated
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            STATIC_CONTAINER_HEIGHT_PX,
+            if (isAccessibility) {
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
             } else {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            }
-            format = PixelFormat.TRANSLUCENT
-
-            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                    WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
-
+            },
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED, // CRITICAL FOR 120HZ
+            PixelFormat.TRANSLUCENT
+        ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            x = 0
+            y = 0
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -93,11 +99,13 @@ object IslandWindowManager {
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
                 }
             }
+
+            // Watch outside touches when starting in expanded or peek state
+            if (islandState is IslandState.Expanded || islandState is IslandState.Peek) {
+                flags = flags or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
+            }
         }
         layoutParams = params
-
-        val cutout = currentCutoutInfo ?: CutoutHelper.resolveCutout(context, null)
-        calculateAndApplyWindowDimensions(params, islandState, cutout)
 
         val composeView = ComposeView(context).apply {
             overlayLifecycleOwner.attachToView(this)
@@ -106,14 +114,6 @@ object IslandWindowManager {
             setOnApplyWindowInsetsListener { _, insets ->
                 val updated = CutoutHelper.resolveCutout(context, insets)
                 currentCutoutInfo = updated
-                calculateAndApplyWindowDimensions(params, islandState, updated)
-                if (isAttached && isAttachedToWindow) {
-                    try {
-                        windowManager?.updateViewLayout(this, params)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to update layout from insets", e)
-                    }
-                }
                 insets
             }
 
@@ -146,7 +146,7 @@ object IslandWindowManager {
             windowManager?.addView(composeView, params)
             isAttached = true
             overlayLifecycleOwner.onResume()
-            Log.d(TAG, "Dynamic Island overlay window successfully attached (type=${params.type})")
+            Log.d(TAG, "Static Dynamic Island overlay attached (MATCH_PARENT x $STATIC_CONTAINER_HEIGHT_PX, type=${params.type})")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to add overlay window to WindowManager", e)
             isAttached = false
@@ -154,78 +154,35 @@ object IslandWindowManager {
     }
 
     /**
-     * Updates the current state and triggers dynamic WindowManager geometry adjustment.
+     * Updates the current state without modifying window geometry.
+     * Only updates WindowManager flags (toggling FLAG_WATCH_OUTSIDE_TOUCH)
+     * when completing a state change, never animating width/height/x/y coordinates.
      */
     @Synchronized
     fun updateState(newState: IslandState) {
+        val oldState = islandState
         islandState = newState
+
         val view = overlayComposeView ?: return
         val params = layoutParams ?: return
-        val cutout = currentCutoutInfo ?: return
         val wm = windowManager ?: return
 
-        calculateAndApplyWindowDimensions(params, newState, cutout)
+        val wasOutsideTouch = (params.flags and WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH) != 0
+        val shouldWatchOutside = newState is IslandState.Expanded || newState is IslandState.Peek
 
-        if (isAttached && view.isAttachedToWindow) {
-            try {
-                wm.updateViewLayout(view, params)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to update window layout for state $newState", e)
-            }
-        }
-    }
-
-    private fun calculateAndApplyWindowDimensions(
-        params: WindowManager.LayoutParams,
-        state: IslandState,
-        cutout: CutoutInfo
-    ) {
-        val density = cutout.density
-        val screenWidthDp = (cutout.screenWidthPx / density).dp
-
-        when (state) {
-            is IslandState.Hidden -> {
-                params.width = 1
-                params.height = 1
-                params.y = 0
+        if (wasOutsideTouch != shouldWatchOutside) {
+            if (shouldWatchOutside) {
+                params.flags = params.flags or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
+            } else {
+                params.flags = params.flags and WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH.inv()
             }
 
-            is IslandState.Collapsed -> {
-                // Sized to comfortably encapsulate camera punch hole and status pill
-                val baseWidthDp = maxOf(cutout.widthDp + 40.dp, 118.dp)
-                val secondaryBonus = if (state.secondaryBubble != null) 54.dp else 0.dp
-                val contentWidthDp = (state.customPillWidthDp?.dp ?: baseWidthDp) + secondaryBonus
-                // Add 28dp gesture slop room (14dp left + 14dp right)
-                val windowWidthDp = contentWidthDp + 28.dp
-                val windowHeightDp = 48.dp
-
-                params.width = (windowWidthDp.value * density).toInt()
-                params.height = (windowHeightDp.value * density).toInt()
-                params.y = 0
-            }
-
-            is IslandState.Peek -> {
-                val bannerWidthDp = minOf(screenWidthDp * 0.94f, 370.dp) + 28.dp
-                val bannerHeightDp = 58.dp
-
-                params.width = (bannerWidthDp.value * density).toInt()
-                params.height = (bannerHeightDp.value * density).toInt()
-                params.y = 0
-            }
-
-            is IslandState.Expanded -> {
-                val cardWidthDp = minOf(screenWidthDp * 0.96f, 400.dp) + 16.dp
-                val cardHeightDp = when (state.type) {
-                    ExpandedContentType.MEDIA -> 230.dp
-                    ExpandedContentType.TIMER -> 210.dp
-                    ExpandedContentType.NOTIFICATION -> 200.dp
-                    ExpandedContentType.CALL -> 170.dp
-                    ExpandedContentType.GENERIC -> 200.dp
+            if (isAttached && view.isAttachedToWindow) {
+                try {
+                    wm.updateViewLayout(view, params)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to update WindowManager flags for state $newState", e)
                 }
-
-                params.width = (cardWidthDp.value * density).toInt()
-                params.height = (cardHeightDp.value * density).toInt()
-                params.y = 0
             }
         }
     }
